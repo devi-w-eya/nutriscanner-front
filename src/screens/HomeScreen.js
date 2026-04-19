@@ -3,7 +3,14 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Image, ActivityIndicator, Alert
 } from 'react-native';
-import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  useFonts,
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold
+} from '@expo-google-fonts/poppins';
 import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { historyGet } from '../api/api';
@@ -12,7 +19,8 @@ import { useAuth } from '../context/AuthContext';
 export default function HomeScreen({ navigation }) {
   const [recentScans, setRecentScans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { user, isGuest } = useAuth();
+  const [streak, setStreak] = useState(0);
+  const { user, isGuest, logout } = useAuth();
 
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
@@ -22,9 +30,16 @@ export default function HomeScreen({ navigation }) {
   });
 
   useEffect(() => {
-    if (!isGuest) loadRecentScans();
-    else setLoading(false);
-  }, []);
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (!isGuest) {
+        loadRecentScans();
+        loadStreak();
+      } else {
+        setLoading(false);
+      }
+    });
+    return unsubscribe;
+  }, [navigation, isGuest]);
 
   const loadRecentScans = async () => {
     try {
@@ -35,6 +50,26 @@ export default function HomeScreen({ navigation }) {
       setRecentScans([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStreak = async () => {
+    try {
+      const lastScanDate = await AsyncStorage.getItem('lastScanDate');
+      const currentStreak = await AsyncStorage.getItem('scanStreak');
+      const today = new Date().toDateString();
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+      if (!lastScanDate) {
+        setStreak(0);
+      } else if (lastScanDate === today || lastScanDate === yesterday) {
+        setStreak(parseInt(currentStreak || '0'));
+      } else {
+        await AsyncStorage.setItem('scanStreak', '0');
+        setStreak(0);
+      }
+    } catch (e) {
+      setStreak(0);
     }
   };
 
@@ -74,7 +109,7 @@ export default function HomeScreen({ navigation }) {
       `Créez un compte pour accéder ${feature}`,
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: "S'inscrire", onPress: () => navigation.navigate('Login') }
+        { text: "S'inscrire", onPress: () => logout() }
       ]
     );
   };
@@ -99,6 +134,14 @@ export default function HomeScreen({ navigation }) {
               {isGuest ? 'Invité' : user?.fullName?.split(' ')[0]} 👋
             </Text>
           </View>
+
+          {streak > 0 && (
+            <View style={styles.streakBadge}>
+              <Text style={styles.streakFire}>🔥</Text>
+              <Text style={styles.streakText}>{streak}</Text>
+            </View>
+          )}
+
           <TouchableOpacity
             style={styles.profileButton}
             onPress={() => navigation.navigate('Profile')}
@@ -113,7 +156,7 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.guestBannerText}>
               🔒 Créez un compte pour sauvegarder vos scans
             </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+            <TouchableOpacity onPress={() => logout()}>
               <Text style={styles.guestBannerLink}>S'inscrire</Text>
             </TouchableOpacity>
           </View>
@@ -183,7 +226,9 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>🔒</Text>
               <Text style={styles.emptyText}>Historique non disponible</Text>
-              <Text style={styles.emptySubtext}>Créez un compte pour sauvegarder vos scans</Text>
+              <Text style={styles.emptySubtext}>
+                Créez un compte pour sauvegarder vos scans
+              </Text>
             </View>
           ) : loading ? (
             <ActivityIndicator color={Colors.primary} style={{ marginTop: 20 }} />
@@ -240,7 +285,10 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
+  loadingContainer: {
+    flex: 1, justifyContent: 'center',
+    alignItems: 'center', backgroundColor: Colors.background
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -251,6 +299,19 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 14, fontFamily: Fonts.regular, color: Colors.textGray },
   userName: { fontSize: 22, fontFamily: Fonts.bold, color: Colors.primary },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 4,
+  },
+  streakFire: { fontSize: 16 },
+  streakText: { fontSize: 13, fontFamily: Fonts.bold, color: Colors.brown },
   profileButton: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: Colors.card,
@@ -270,11 +331,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  guestBannerText: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textGray, flex: 1 },
-  guestBannerLink: { fontSize: 12, fontFamily: Fonts.semiBold, color: Colors.brown, marginLeft: 8 },
+  guestBannerText: {
+    fontSize: 12, fontFamily: Fonts.regular,
+    color: Colors.textGray, flex: 1
+  },
+  guestBannerLink: {
+    fontSize: 12, fontFamily: Fonts.semiBold,
+    color: Colors.brown, marginLeft: 8
+  },
   heroSection: { paddingHorizontal: 24, paddingBottom: 24 },
   heroTitle: { fontSize: 20, fontFamily: Fonts.bold, color: Colors.primary, marginBottom: 6 },
-  heroSubtitle: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textGray, marginBottom: 20, lineHeight: 20 },
+  heroSubtitle: {
+    fontSize: 13, fontFamily: Fonts.regular,
+    color: Colors.textGray, marginBottom: 20, lineHeight: 20
+  },
   scanButton: {
     backgroundColor: Colors.primary,
     borderRadius: 20, padding: 24, alignItems: 'center',
@@ -283,7 +353,10 @@ const styles = StyleSheet.create({
   },
   scanButtonInner: { alignItems: 'center' },
   scanIcon: { fontSize: 48, marginBottom: 12 },
-  scanButtonText: { fontSize: 18, fontFamily: Fonts.bold, color: Colors.textLight, marginBottom: 4 },
+  scanButtonText: {
+    fontSize: 18, fontFamily: Fonts.bold,
+    color: Colors.textLight, marginBottom: 4
+  },
   scanButtonSubtext: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.mint },
   quickActions: { flexDirection: 'row', paddingHorizontal: 24, gap: 12, marginBottom: 24 },
   quickActionCard: {
@@ -296,14 +369,20 @@ const styles = StyleSheet.create({
   quickActionIcon: { fontSize: 24, marginBottom: 6 },
   quickActionText: { fontSize: 12, fontFamily: Fonts.medium, color: Colors.primary },
   section: { paddingHorizontal: 24 },
-  sectionTitle: { fontSize: 17, fontFamily: Fonts.bold, color: Colors.primary, marginBottom: 14 },
+  sectionTitle: {
+    fontSize: 17, fontFamily: Fonts.bold,
+    color: Colors.primary, marginBottom: 14
+  },
   emptyState: {
     alignItems: 'center', paddingVertical: 40,
     backgroundColor: Colors.card, borderRadius: 16,
     borderWidth: 1, borderColor: Colors.border,
   },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyText: { fontSize: 15, fontFamily: Fonts.semiBold, color: Colors.primary, marginBottom: 4 },
+  emptyText: {
+    fontSize: 15, fontFamily: Fonts.semiBold,
+    color: Colors.primary, marginBottom: 4
+  },
   emptySubtext: { fontSize: 13, fontFamily: Fonts.regular, color: Colors.textGray },
   scanCard: {
     flexDirection: 'row', alignItems: 'center',
@@ -311,14 +390,24 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border,
   },
   scanCardLeft: { marginRight: 12 },
-  productImage: { width: 52, height: 52, borderRadius: 10, backgroundColor: Colors.card },
+  productImage: {
+    width: 52, height: 52, borderRadius: 10,
+    backgroundColor: Colors.card
+  },
   productImagePlaceholder: {
     width: 52, height: 52, borderRadius: 10,
-    backgroundColor: Colors.card, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: Colors.card,
+    justifyContent: 'center', alignItems: 'center',
   },
   scanCardMiddle: { flex: 1 },
-  scanProductName: { fontSize: 14, fontFamily: Fonts.semiBold, color: Colors.textDark, marginBottom: 2 },
-  scanBrand: { fontSize: 12, fontFamily: Fonts.regular, color: Colors.textGray, marginBottom: 2 },
+  scanProductName: {
+    fontSize: 14, fontFamily: Fonts.semiBold,
+    color: Colors.textDark, marginBottom: 2
+  },
+  scanBrand: {
+    fontSize: 12, fontFamily: Fonts.regular,
+    color: Colors.textGray, marginBottom: 2
+  },
   scanDate: { fontSize: 11, fontFamily: Fonts.regular, color: Colors.textGray },
   scanCardRight: { alignItems: 'center', marginLeft: 8 },
   scanEmoji: { fontSize: 18, marginBottom: 2 },

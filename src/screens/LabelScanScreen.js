@@ -68,207 +68,212 @@ export default function LabelScanScreen({ navigation, route }) {
 
       const result = await productScanLabel(barcode, photo.base64);
       setProduct(result);
-    } catch (err) {
+    }  catch (err) {
       const code = err?.response?.data?.error;
-      const msg = code === 'AI_UNAVAILABLE'
-        ? 'Le service IA est indisponible. Réessayez.'
-        : 'Impossible d\'analyser l\'étiquette. Réessayez.';
-      Alert.alert('Erreur', msg);
-      setCapturing(false);
+      if (code === 'AI_UNAVAILABLE') {
+        Alert.alert(
+          'Aucun additif détecté',
+          'L\'IA n\'a pas trouvé d\'additifs sur cette étiquette. Essayez de zoomer sur la liste des ingrédients.',
+          [{ text: 'Réessayer', onPress: () => setCapturing(false) }]
+        );
+      } else {
+        Alert.alert('Erreur', 'Impossible d\'analyser l\'étiquette. Réessayez.');
+        setCapturing(false);
+      }
     }
-  };
+};
 
-  const scoreColor = (c) => {
-    switch (c) {
-      case 'GREEN': return Colors.green;
-      case 'ORANGE': return Colors.orange;
-      case 'RED': return Colors.red;
-      default: return Colors.textGray;
-    }
-  };
-
-
-
-  const riskLabel = (l) => {
-    switch (l) {
-      case 'HIGH': return 'Risque élevé';
-      case 'MEDIUM': return 'Risque moyen';
-      case 'LOW': return 'Risque faible';
-      default: return 'Inconnu';
-    }
-  };
-  const riskColor = (l) => {
-    switch (l) {
-      case 'HIGH': return Colors.red;
-      case 'MEDIUM_HIGH': return Colors.amber;
-      case 'MEDIUM': return Colors.orange;
-      case 'LOW': return Colors.green;
-      default: return Colors.textGray;
-    }
-  };
-
-  const riskBg = (l) => {
-    switch (l) {
-      case 'HIGH': return Colors.redLight;
-      case 'MEDIUM_HIGH': return Colors.amberLight;
-      case 'MEDIUM': return Colors.orangeLight;
-      case 'LOW': return Colors.greenLight;
-      default: return Colors.card;
-    }
-  };
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
+const scoreColor = (c) => {
+  switch (c) {
+    case 'GREEN': return Colors.green;
+    case 'ORANGE': return Colors.orange;
+    case 'RED': return Colors.red;
+    default: return Colors.textGray;
   }
+};
 
-  if (!permission?.granted) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.permIcon}>📷</Text>
-        <Text style={styles.permTitle}>Accès caméra requis</Text>
-        <TouchableOpacity style={styles.btn} onPress={requestPermission}>
-          <Text style={styles.btnText}>Autoriser</Text>
-        </TouchableOpacity>
-      </View>
-    );
+
+
+const riskLabel = (l) => {
+  switch (l) {
+    case 'HIGH': return 'Risque élevé';
+    case 'MEDIUM': return 'Risque moyen';
+    case 'LOW': return 'Risque faible';
+    default: return 'Inconnu';
   }
-
-  if (product) {
-    const additives = product.additives || [];
-    const sc = scoreColor(product.scoreColor);
-
-    return (
-      <View style={styles.container}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-
-          <View style={[styles.scoreHeader, { backgroundColor: sc }]}>
-            <TouchableOpacity
-              style={styles.backBtn}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.backBtnTxt}>← Retour</Text>
-            </TouchableOpacity>
-
-            <View style={styles.scoreCircle}>
-              <Text style={[styles.scoreNum, { color: sc }]}>
-                {product.finalScore}
-              </Text>
-              <Text style={styles.scoreSlash}>/20</Text>
-            </View>
-
-            <Text style={styles.scoreLabel}>{product.scoreLabel}</Text>
-            <Text style={styles.sourceLbl}>📷 Analysé via étiquette</Text>
-          </View>
-
-          <View style={styles.productCard}>
-            <Text style={styles.productName}>
-              {product.productName || 'Produit scanné'}
-            </Text>
-            <Text style={styles.productBarcode}>
-              Code-barres : {product.barcode}
-            </Text>
-            {product.brand ? (
-              <Text style={styles.productBrand}>{product.brand}</Text>
-            ) : null}
-          </View>
-
-          <View style={styles.additivesSection}>
-            <Text style={styles.sectionTitle}>
-              Additifs détectés ({additives.length})
-            </Text>
-
-            {additives.length === 0 ? (
-              <View style={styles.noAdditives}>
-                <Text style={{ fontSize: 36, marginBottom: 8 }}>✅</Text>
-                <Text style={styles.noAdditivesText}>Aucun additif détecté</Text>
-              </View>
-            ) : (
-              additives.map((a, i) => (
-                <View
-                  key={i}
-                  style={[styles.additiveCard, { borderLeftColor: riskColor(a.riskLevel), backgroundColor: riskBg(a.riskLevel) }]}
-                >
-                  <View style={styles.additiveHeader}>
-                    <Text style={styles.additiveCode}>{a.code}</Text>
-                    <View style={[styles.riskBadge, { backgroundColor: riskColor(a.riskLevel) }]}>
-                      <Text style={styles.riskBadgeTxt}>{riskLabel(a.riskLevel)}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.additiveName}>{a.nameFr}</Text>
-                  <Text style={styles.additiveDesc}>{a.description}</Text>
-                  <Text style={styles.additiveDeduct}>Déduction : -{a.deduction} pts</Text>
-                </View>
-              ))
-            )}
-          </View>
-
-          <View style={{ height: 60 }} />
-        </ScrollView>
-      </View>
-    );
+};
+const riskColor = (l) => {
+  switch (l) {
+    case 'HIGH': return Colors.red;
+    case 'MEDIUM_HIGH': return Colors.amber;
+    case 'MEDIUM': return Colors.orange;
+    case 'LOW': return Colors.green;
+    default: return Colors.textGray;
   }
+};
 
+const riskBg = (l) => {
+  switch (l) {
+    case 'HIGH': return Colors.redLight;
+    case 'MEDIUM_HIGH': return Colors.amberLight;
+    case 'MEDIUM': return Colors.orangeLight;
+    case 'LOW': return Colors.greenLight;
+    default: return Colors.card;
+  }
+};
+
+if (!fontsLoaded) {
   return (
-    <View style={styles.cameraWrap} {...panResponder.panHandlers}>
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFillObject}
-        facing="back"
-        enableTorch={torch}
-        zoom={zoom}
-      />
-
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.closeTxt}>✕</Text>
-        </TouchableOpacity>
-        <Text style={styles.topTitle}>Scanner l'étiquette</Text>
-        <TouchableOpacity
-          style={[styles.torchBtn, torch && styles.torchBtnActive]}
-          onPress={() => setTorch(prev => !prev)}
-        >
-          <Text style={styles.torchIcon}>🔦</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Center guide frame */}
-      <View style={styles.frameContainer}>
-        <View style={styles.guideFrame}>
-          <View style={[styles.corner, styles.tl]} />
-          <View style={[styles.corner, styles.tr]} />
-          <View style={[styles.corner, styles.bl]} />
-          <View style={[styles.corner, styles.br]} />
-        </View>
-        <Text style={styles.guideText}>
-          Centrez la liste des ingrédients
-        </Text>
-      </View>
-
-      {/* Bottom bar */}
-      <View style={styles.bottomBar}>
-        <Text style={styles.barcodeRef}>Code-barres : {barcode}</Text>
-        <Text style={styles.zoomHint}>
-          🤏 Pincez pour zoomer • {zoom === 0 ? '1×' : `${(1 + zoom * 9).toFixed(1)}×`}
-        </Text>
-
-        {capturing ? (
-          <View style={styles.capturingBox}>
-            <ActivityIndicator color={Colors.textLight} size="large" />
-            <Text style={styles.capturingTxt}>Analyse IA en cours...</Text>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.captureBtn} onPress={captureAndScan}>
-            <View style={styles.captureBtnInner} />
-          </TouchableOpacity>
-        )}
-      </View>
+    <View style={styles.center}>
+      <ActivityIndicator size="large" color={Colors.primary} />
     </View>
   );
+}
+
+if (!permission?.granted) {
+  return (
+    <View style={styles.center}>
+      <Text style={styles.permIcon}>📷</Text>
+      <Text style={styles.permTitle}>Accès caméra requis</Text>
+      <TouchableOpacity style={styles.btn} onPress={requestPermission}>
+        <Text style={styles.btnText}>Autoriser</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+if (product) {
+  const additives = product.additives || [];
+  const sc = scoreColor(product.scoreColor);
+
+  return (
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+
+        <View style={[styles.scoreHeader, { backgroundColor: sc }]}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backBtnTxt}>← Retour</Text>
+          </TouchableOpacity>
+
+          <View style={styles.scoreCircle}>
+            <Text style={[styles.scoreNum, { color: sc }]}>
+              {product.finalScore}
+            </Text>
+            <Text style={styles.scoreSlash}>/20</Text>
+          </View>
+
+          <Text style={styles.scoreLabel}>{product.scoreLabel}</Text>
+          <Text style={styles.sourceLbl}>📷 Analysé via étiquette</Text>
+        </View>
+
+        <View style={styles.productCard}>
+          <Text style={styles.productName}>
+            {product.productName || 'Produit scanné'}
+          </Text>
+          <Text style={styles.productBarcode}>
+            Code-barres : {product.barcode}
+          </Text>
+          {product.brand ? (
+            <Text style={styles.productBrand}>{product.brand}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.additivesSection}>
+          <Text style={styles.sectionTitle}>
+            Additifs détectés ({additives.length})
+          </Text>
+
+          {additives.length === 0 ? (
+            <View style={styles.noAdditives}>
+              <Text style={{ fontSize: 36, marginBottom: 8 }}>✅</Text>
+              <Text style={styles.noAdditivesText}>Aucun additif détecté</Text>
+            </View>
+          ) : (
+            additives.map((a, i) => (
+              <View
+                key={i}
+                style={[styles.additiveCard, { borderLeftColor: riskColor(a.riskLevel), backgroundColor: riskBg(a.riskLevel) }]}
+              >
+                <View style={styles.additiveHeader}>
+                  <Text style={styles.additiveCode}>{a.code}</Text>
+                  <View style={[styles.riskBadge, { backgroundColor: riskColor(a.riskLevel) }]}>
+                    <Text style={styles.riskBadgeTxt}>{riskLabel(a.riskLevel)}</Text>
+                  </View>
+                </View>
+                <Text style={styles.additiveName}>{a.nameFr}</Text>
+                <Text style={styles.additiveDesc}>{a.description}</Text>
+                <Text style={styles.additiveDeduct}>Déduction : -{a.deduction} pts</Text>
+              </View>
+            ))
+          )}
+        </View>
+
+        <View style={{ height: 60 }} />
+      </ScrollView>
+    </View>
+  );
+}
+
+return (
+  <View style={styles.cameraWrap} {...panResponder.panHandlers}>
+    <CameraView
+      ref={cameraRef}
+      style={StyleSheet.absoluteFillObject}
+      facing="back"
+      enableTorch={torch}
+      zoom={zoom}
+    />
+
+    {/* Top bar */}
+    <View style={styles.topBar}>
+      <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
+        <Text style={styles.closeTxt}>✕</Text>
+      </TouchableOpacity>
+      <Text style={styles.topTitle}>Scanner l'étiquette</Text>
+      <TouchableOpacity
+        style={[styles.torchBtn, torch && styles.torchBtnActive]}
+        onPress={() => setTorch(prev => !prev)}
+      >
+        <Text style={styles.torchIcon}>🔦</Text>
+      </TouchableOpacity>
+    </View>
+
+    {/* Center guide frame */}
+    <View style={styles.frameContainer}>
+      <View style={styles.guideFrame}>
+        <View style={[styles.corner, styles.tl]} />
+        <View style={[styles.corner, styles.tr]} />
+        <View style={[styles.corner, styles.bl]} />
+        <View style={[styles.corner, styles.br]} />
+      </View>
+      <Text style={styles.guideText}>
+        Centrez la liste des ingrédients
+      </Text>
+    </View>
+
+    {/* Bottom bar */}
+    <View style={styles.bottomBar}>
+      <Text style={styles.barcodeRef}>Code-barres : {barcode}</Text>
+      <Text style={styles.zoomHint}>
+        🤏 Pincez pour zoomer • {zoom === 0 ? '1×' : `${(1 + zoom * 9).toFixed(1)}×`}
+      </Text>
+
+      {capturing ? (
+        <View style={styles.capturingBox}>
+          <ActivityIndicator color={Colors.textLight} size="large" />
+          <Text style={styles.capturingTxt}>Analyse IA en cours...</Text>
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.captureBtn} onPress={captureAndScan}>
+          <View style={styles.captureBtnInner} />
+        </TouchableOpacity>
+      )}
+    </View>
+  </View>
+);
 }
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },

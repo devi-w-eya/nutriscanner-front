@@ -40,6 +40,7 @@ function AppStack() {
       <Stack.Screen name="History" component={HistoryScreen} />
       <Stack.Screen name="Favourites" component={FavouritesScreen} />
       <Stack.Screen name="AIAssistant" component={AIAssistantScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen}/>
     </Stack.Navigator>
   );
 }

@@ -42,30 +42,29 @@ export default function LoginScreen({ navigation }) {
     );
   }
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Erreur", "Veuillez remplir tous les champs");
-      return;
-    }
-    setLoading(true);
-    try {
-      // authLogin(email, password) → sends { email, password } → returns AuthResponse
-      const authResponse = await authLogin(email.trim(), password);
-      await saveUser(authResponse);
-      // Navigation handled automatically by RootNavigator when user is set
-    } catch (err) {
-      const code = err?.response?.data?.error;
-      const msg =
-        code === "INVALID_CREDENTIALS"
-          ? "Email ou mot de passe incorrect"
-          : code === "ACCOUNT_DISABLED"
-            ? "Compte désactivé"
-            : "Connexion échouée. Vérifiez votre connexion.";
-      Alert.alert("Erreur", msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+ const handleLogin = async () => {
+  if (!email.trim() || !password.trim()) {
+    Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+    return;
+  }
+  setLoading(true);
+  try {
+    const authResponse = await authLogin(email.trim(), password);
+    console.log('Login response:', JSON.stringify(authResponse));
+    await saveUser(authResponse);
+  } catch (err) {
+    console.log('Login error full:', JSON.stringify(err?.response?.data));
+    const code = err?.response?.data?.error;
+    const msg = code === 'INVALID_CREDENTIALS'
+      ? 'Email ou mot de passe incorrect'
+      : code === 'ACCOUNT_DISABLED'
+      ? 'Compte désactivé'
+      : 'Connexion échouée. Vérifiez votre connexion.';
+    Alert.alert('Erreur', msg);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <KeyboardAvoidingView

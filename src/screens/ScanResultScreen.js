@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Image, ActivityIndicator, Alert
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   useFonts,
@@ -19,11 +20,11 @@ export default function ScanResultScreen({ navigation, route }) {
   const { preloadedBarcode } = route?.params || {};
 
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [product, setProduct] = useState(null);
-  const [isFavourite, setIsFavourite] = useState(false);
-  const [notFound, setNotFound] = useState(false);
+  const [scanned, setScanned]           = useState(false);
+  const [scanning, setScanning]         = useState(false);
+  const [product, setProduct]           = useState(null);
+  const [isFavourite, setIsFavourite]   = useState(false);
+  const [notFound, setNotFound]         = useState(false);
   const [currentBarcode, setCurrentBarcode] = useState(null);
 
   const [fontsLoaded] = useFonts({
@@ -33,46 +34,61 @@ export default function ScanResultScreen({ navigation, route }) {
     Poppins_700Bold,
   });
 
-  // If opened from history with a barcode — load directly
   useEffect(() => {
-    if (preloadedBarcode) {
-      loadProduct(preloadedBarcode);
-    }
+    if (preloadedBarcode) loadProduct(preloadedBarcode);
   }, []);
 
   useEffect(() => {
     if (product) checkFavourite();
   }, [product]);
 
+  const updateStreak = async () => {
+    try {
+      const today = new Date().toDateString();
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      const lastScanDate = await AsyncStorage.getItem('lastScanDate');
+      const currentStreak = parseInt(await AsyncStorage.getItem('scanStreak') || '0');
+
+      if (lastScanDate === today) {
+        // Already scanned today — no change
+      } else if (lastScanDate === yesterday) {
+        await AsyncStorage.setItem('scanStreak', String(currentStreak + 1));
+        await AsyncStorage.setItem('lastScanDate', today);
+      } else {
+        await AsyncStorage.setItem('scanStreak', '1');
+        await AsyncStorage.setItem('lastScanDate', today);
+      }
+    } catch (e) {}
+  };
+
   const loadProduct = async (barcode) => {
-  setScanning(true);
-  setScanned(true);
-  setCurrentBarcode(barcode);
-  try {
-    const result = await productScan(barcode);
-    setProduct(result);
-  } catch (err) {
-    const code = err?.response?.data?.error;
-    if (code === 'PRODUCT_NOT_FOUND' || code === 'PRODUCT_INSUFFICIENT_DATA') {
-      setNotFound(true);
-    } else {
-      Alert.alert(
-        'Erreur',
-        'Produit introuvable',
-        [{ text: 'Retour', onPress: () => navigation.goBack() }]
-      );
+    setScanning(true);
+    setScanned(true);
+    setCurrentBarcode(barcode);
+    try {
+      const result = await productScan(barcode);
+      setProduct(result);
+      await updateStreak();
+    } catch (err) {
+      const code = err?.response?.data?.error;
+      if (code === 'PRODUCT_NOT_FOUND' || code === 'PRODUCT_INSUFFICIENT_DATA') {
+        setNotFound(true);
+      } else {
+        Alert.alert('Erreur', 'Produit introuvable', [
+          { text: 'Retour', onPress: () => navigation.goBack() }
+        ]);
+      }
+    } finally {
+      setScanning(false);
     }
-  } finally {
-    setScanning(false);
-  }
-};
+  };
 
   const checkFavourite = async () => {
     try {
       const favs = await favouritesGet();
       const list = Array.isArray(favs) ? favs : [];
       setIsFavourite(list.some(f => f.barcode === product.barcode));
-    } catch (e) { }
+    } catch (e) {}
   };
 
   const resetScanner = () => {
@@ -95,6 +111,7 @@ export default function ScanResultScreen({ navigation, route }) {
     try {
       const result = await productScan(data);
       setProduct(result);
+      await updateStreak();
     } catch (err) {
       const code = err?.response?.data?.error;
       if (code === 'PRODUCT_NOT_FOUND' || code === 'PRODUCT_INSUFFICIENT_DATA') {
@@ -113,6 +130,7 @@ export default function ScanResultScreen({ navigation, route }) {
       setScanning(false);
     }
   };
+
   const handleFavourite = async () => {
     try {
       if (isFavourite) {
@@ -129,53 +147,44 @@ export default function ScanResultScreen({ navigation, route }) {
 
   const scoreColor = (c) => {
     switch (c) {
-      case 'GREEN': return Colors.green;
+      case 'GREEN':  return Colors.green;
       case 'ORANGE': return Colors.orange;
-      case 'AMBER': return Colors.amber;
-      case 'RED': return Colors.red;
-      default: return Colors.textGray;
+      case 'AMBER':  return Colors.amber;
+      case 'RED':    return Colors.red;
+      default:       return Colors.textGray;
     }
   };
-  const scoreBg = (c) => {
-    switch (c) {
-      case 'GREEN': return Colors.greenLight;
-      case 'ORANGE': return Colors.orangeLight;
-      case 'AMBER': return Colors.amberLight;
-      case 'RED': return Colors.redLight;
-      default: return Colors.card;
-    }
-  };
+
   const riskBg = (l) => {
     switch (l) {
-      case 'HIGH': return Colors.redLight;
+      case 'HIGH':        return Colors.redLight;
       case 'MEDIUM_HIGH': return Colors.amberLight;
-      case 'MEDIUM': return Colors.orangeLight;
-      case 'LOW': return Colors.greenLight;
-      default: return Colors.card;
+      case 'MEDIUM':      return Colors.orangeLight;
+      case 'LOW':         return Colors.greenLight;
+      default:            return Colors.card;
     }
   };
 
   const riskColor = (l) => {
-  switch (l) {
-    case 'HIGH':        return Colors.red;
-    case 'MEDIUM_HIGH': return Colors.amber;
-    case 'MEDIUM':      return Colors.orange;
-    case 'LOW':         return Colors.green;
-    default:            return Colors.textGray;
-  }
-};
-
-  const riskLabel = (l) => {
     switch (l) {
-      case 'HIGH': return '🔴 Dangereux';
-      case 'MEDIUM_HIGH': return '🟠 Préoccupant';
-      case 'MEDIUM': return '🟡 Modéré';
-      case 'LOW': return '🟢 Sûr';
-      default: return '❓ Inconnu';
+      case 'HIGH':        return Colors.red;
+      case 'MEDIUM_HIGH': return Colors.amber;
+      case 'MEDIUM':      return Colors.orange;
+      case 'LOW':         return Colors.green;
+      default:            return Colors.textGray;
     }
   };
 
-  // Loading state — show spinner when preloaded barcode is being fetched
+  const riskLabel = (l) => {
+    switch (l) {
+      case 'HIGH':        return '🔴 Dangereux';
+      case 'MEDIUM_HIGH': return '🟠 Préoccupant';
+      case 'MEDIUM':      return '🟡 Modéré';
+      case 'LOW':         return '🟢 Sûr';
+      default:            return '❓ Inconnu';
+    }
+  };
+
   if (scanning && preloadedBarcode && !product) {
     return (
       <View style={styles.center}>
@@ -211,7 +220,6 @@ export default function ScanResultScreen({ navigation, route }) {
     );
   }
 
-  // Product not found
   if (notFound) {
     return (
       <View style={styles.notFoundContainer}>
@@ -238,7 +246,6 @@ export default function ScanResultScreen({ navigation, route }) {
     );
   }
 
-  // Camera
   if (!product) {
     return (
       <View style={styles.cameraWrap}>
@@ -273,7 +280,6 @@ export default function ScanResultScreen({ navigation, route }) {
     );
   }
 
-  // Product result
   const additives = product.additives || [];
   const sc = scoreColor(product.scoreColor);
 
@@ -315,20 +321,27 @@ export default function ScanResultScreen({ navigation, route }) {
 
           <View style={styles.breakdown}>
             <View style={styles.bdItem}>
-              <Text style={styles.bdLabel}>Score base</Text>
-              <Text style={styles.bdVal}>{product.scoreBreakdown?.baseScore ?? 0}</Text>
-            </View>
-            <View style={styles.bdDivider} />
-            <View style={styles.bdItem}>
-              <Text style={styles.bdLabel}>Déductions</Text>
-              <Text style={[styles.bdVal, { color: Colors.red }]}>
-                -{product.scoreBreakdown?.totalDeductions ?? 0}
+              <Text style={styles.bdEmoji}>🌿</Text>
+              <Text style={styles.bdLabel}>Groupe NOVA</Text>
+              <Text style={styles.bdVal}>
+                {product.novaGroup ? `Niveau ${product.novaGroup}` : 'Inconnu'}
               </Text>
             </View>
             <View style={styles.bdDivider} />
             <View style={styles.bdItem}>
-              <Text style={styles.bdLabel}>Score final</Text>
-              <Text style={[styles.bdVal, { color: sc }]}>{product.finalScore}/20</Text>
+              <Text style={styles.bdEmoji}>⚗️</Text>
+              <Text style={styles.bdLabel}>Additifs</Text>
+              <Text style={styles.bdVal}>
+                {additives.length} détecté{additives.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <View style={styles.bdDivider} />
+            <View style={styles.bdItem}>
+              <Text style={styles.bdEmoji}>📊</Text>
+              <Text style={styles.bdLabel}>Score</Text>
+              <Text style={[styles.bdVal, { color: sc }]}>
+                {product.finalScore}/20
+              </Text>
             </View>
           </View>
 
@@ -441,8 +454,9 @@ const styles = StyleSheet.create({
   productImgPlaceholder: { width: 80, height: 80, borderRadius: 12, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   breakdown: { flexDirection: 'row', backgroundColor: Colors.background, borderRadius: 12, padding: 12, marginBottom: 14 },
   bdItem: { flex: 1, alignItems: 'center' },
-  bdLabel: { fontSize: 11, fontFamily: Fonts.regular, color: Colors.textGray, marginBottom: 4 },
-  bdVal: { fontSize: 16, fontFamily: Fonts.bold, color: Colors.textDark },
+  bdEmoji: { fontSize: 18, marginBottom: 4 },
+  bdLabel: { fontSize: 11, fontFamily: Fonts.regular, color: Colors.textGray, marginBottom: 4, textAlign: 'center' },
+  bdVal: { fontSize: 14, fontFamily: Fonts.bold, color: Colors.textDark, textAlign: 'center' },
   bdDivider: { width: 1, backgroundColor: Colors.border, marginHorizontal: 8 },
   actions: { flexDirection: 'row', gap: 10 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border },
